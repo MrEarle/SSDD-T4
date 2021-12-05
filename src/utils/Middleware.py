@@ -1,11 +1,14 @@
-from abc import abstractmethod
-from typing import Callable, Dict, Tuple, Union
+from __future__ import annotations
+from typing import Callable, Dict, Tuple, Union, TYPE_CHECKING
 
 from socketio import Server
 
+if TYPE_CHECKING:
+    from ..server.main import MainServer
+
 
 class Middleware:
-    def __init__(self, socketio: Server, next_middleware=None, main_server=None):
+    def __init__(self, socketio: Server, next_middleware=None, main_server: MainServer = None):
 
         # El objeto Server del socketio
         self.socketio = socketio

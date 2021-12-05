@@ -42,7 +42,7 @@ class MigrationMiddleware(Middleware):
                 pass
         return valid
 
-    def migrate(self):
+    def __migrate(self):
         """Comenzar el proceso de migración"""
 
         selected_server = False
@@ -72,6 +72,15 @@ class MigrationMiddleware(Middleware):
         self.request_migration(new_address)
         return True
 
+    def migrate(self):
+        """Ejecutar el proceso de migracion"""
+        try:
+            return self.__migrate()
+        except Exception as e:
+            logger.error(e)
+            self.__migrating = False
+            return False
+
     def request_server_start(self, sid):
         """Mandar un mensaje al cliente para solicitar que empiece el proceso del server"""
         logger.debug("Requesting server start")
@@ -82,8 +91,11 @@ class MigrationMiddleware(Middleware):
         def cb(data):
             # Cliente retorna la ip y puerto del server que se acaba de crear
             nonlocal done, addr
+            try:
+                addr = (data["ip"], data["port"])
+            except:
+                pass
             done = True
-            addr = (data["ip"], data["port"])
 
         self.socketio.emit("server_start", {}, to=sid, callback=cb)
 
