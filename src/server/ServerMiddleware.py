@@ -8,6 +8,8 @@ logger = getServerLogger("ServerMiddleware")
 
 
 class ServerMiddleware(Middleware):
+    """Midleware encargado de manejar la logica del chat"""
+
     def __init__(self, users: UserList, messages: dict, min_user_count: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

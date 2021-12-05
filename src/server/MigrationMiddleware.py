@@ -17,6 +17,8 @@ SERVER_START_TIMEOUT = 10  # seconds
 
 
 class MigrationMiddleware(Middleware):
+    """Middleware encargado de manejar la logica de migracion"""
+
     def __init__(self, users: UserList, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.users = users
@@ -29,6 +31,8 @@ class MigrationMiddleware(Middleware):
         }
 
     def migrate(self):
+        """Comenzar el proceso de migración"""
+
         selected_server = False
         new_address = None
 
@@ -57,12 +61,14 @@ class MigrationMiddleware(Middleware):
         return True
 
     def request_server_start(self, sid):
+        """Mandar un mensaje al cliente para solicitar que empiece el proceso del server"""
         logger.debug("Requesting server start")
 
         done = False
         addr = None
 
         def cb(data):
+            # Cliente retorna la ip y puerto del server que se acaba de crear
             nonlocal done, addr
             done = True
             addr = (data["ip"], data["port"])
@@ -81,6 +87,11 @@ class MigrationMiddleware(Middleware):
         return addr
 
     def request_migration_connection(self, ip, port):
+        """
+        Una vez que el nuevo server esta andando,
+        se conecta con el para comezar la migracion
+        """
+
         logger.debug("Requesting migration connection")
         addr = f"http://{ip}:{port}"
 
@@ -93,10 +104,15 @@ class MigrationMiddleware(Middleware):
             return False
 
     def send_pause_messaging_signal(self, pause=True):
+        """Notificar a usuarios que encolen (o dejen de encolar) mensajes"""
         self.__migrating = pause
         self.socketio.emit("pause_messaging", pause)
 
     def request_migration(self, new_address):
+        """
+        Una vez conectado al nuevo server,
+        se manda la informacion de la migracion
+        """
         logger.debug("Requesting migration")
 
         data = {
@@ -106,6 +122,9 @@ class MigrationMiddleware(Middleware):
         }
 
         def on_ack(*_):
+            # Una vez que el nuevo server recibe la informacion,
+            # se desconecta de el, y se ejecuta el proceso de termino
+            # de este server
             self.client.disconnect()
             self.client = None
             self.on_migrate_complete(new_address)
@@ -113,9 +132,18 @@ class MigrationMiddleware(Middleware):
         self.client.emit("migrate", data, callback=on_ack)
 
     def on_migrate_complete(self, addr):
+        """
+        Una vez completada la migracion,
+        se cambia la direccion del server
+        y se notifica a los usuarios para que
+        se reconecten
+        """
         logger.debug("Migration complete")
 
         def cb(*_):
+            # Al cambiar la direccion del server,
+            # se notifica a los usuarios para que se reconecten,
+            # se detiene este server y se termina el proceso
             self.socketio.emit("reconnect")
             self.main_server._created_server.shutdown()
             os.kill(os.getpid(), signal.SIGTERM)
@@ -131,6 +159,7 @@ class MigrationMiddleware(Middleware):
         return True
 
     def __start(self):
+        """Comenzar ciclo de migracion"""
         logger.debug("MigrationMiddleware started")
 
         while True:
@@ -150,6 +179,11 @@ class MigrationMiddleware(Middleware):
         self.socketio.start_background_task(self.__start)
 
     def on_connect(self, sid, data):
+        """
+        Cuando se conecta alguien al server,
+        si es para migrar se acepta la conexion y no se pasa el mensaje al siguiente middleware,
+        si no, se pasa el mensaje al siguiente middleware (solo si no se esta migrando)
+        """
         if "migration" in data and data["migration"]:
             logger.debug("Migration connection")
             return False, {}

@@ -5,6 +5,8 @@ from ..utils.Middleware import Middleware
 
 
 class ReplicationMiddleware(Middleware):
+    """Este sería el middleware encargado de manejar la replicación de los servidores"""
+
     def __init__(self, users: UserList, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -16,6 +18,12 @@ class ReplicationMiddleware(Middleware):
         self.handlers = {"chat": self.chat}
 
     def chat(self, sid: str, data: dict):
+        """
+        Si llega un evento 'chat', se procesa por aca y se le asigna el indice correspondiente.
+        El mensaje se pasa al siguiente middleware para que eventualmente sea procesado por el
+        servidor de chat.
+        """
+
         client = self.users.get_user_by_sid(sid)
 
         if client is None:

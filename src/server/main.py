@@ -93,6 +93,7 @@ class MainServer:
         self.server_middleware = ServerMiddleware(
             self.users, self.messages, self.min_user_count, self.server, main_server=self
         )
+
         self.middlewares.append(self.server_middleware)
 
         prev_middleware = None
