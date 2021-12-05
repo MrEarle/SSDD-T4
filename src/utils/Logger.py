@@ -1,6 +1,7 @@
 from logging import getLogger
-from colorama import Fore as Color
 from random import choice
+
+from colorama import Fore as Color
 
 available_colors = {
     Color.RED,

@@ -1,8 +1,7 @@
-import logging
-import socket
 from argparse import ArgumentParser
-
-from src.server.main import MainServer
+import socket
+from src.client.client_socket import ClientSockets
+import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -27,17 +26,9 @@ parser.add_argument(
     help="Server URI",
     type=str,
 )
-parser.add_argument(
-    "-n",
-    "--min_n",
-    default=0,
-    help="Minimum number of clients before starting the connection.",
-    type=int,
-)
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    # Server en otro thread
-    server = MainServer(args.dns_ip, args.dns_port, args.min_n, args.server_uri)
-    server.start()
+    client = ClientSockets(args.dns_ip, args.dns_port, args.server_uri)
+    client.initialize()

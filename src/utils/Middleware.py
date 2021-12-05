@@ -1,12 +1,15 @@
 from abc import abstractmethod
-from typing import Tuple
+from typing import Callable, Tuple, Union
+
 from socketio import Server
 
 
-class Middleware():
+class Middleware:
     def __init__(self, socketio: Server, next_middleware=None):
         self.socketio = socketio
         self.next_middleware = next_middleware
+
+        self.handlers = {}
 
     def set_next(self, middleware):
         self.next_middleware = middleware
@@ -29,11 +32,10 @@ class Middleware():
 
             # Update the return value if the next middleware returned something
             if next_ret_val:
-                ret_val = ret_val.update(next_ret_val)
+                ret_val.update(next_ret_val)
 
         return ret_val
 
-    @abstractmethod
     def __handle(self, event: str, sid: str, data: dict) -> Tuple[bool, dict]:
         """Handle the event.
 
@@ -46,10 +48,27 @@ class Middleware():
             bool: Whether to pass the event to the next middleware.
             dict: Data to be sent back to the client.
         """
-        pass_next = True
-        ret_val = {}
-        # ! Handle event here.
-        # ! Return pass_next = False if you don't want to pass the event to the next middleware.
-        # ! Return ret_val if you want to return a value to the client.
+        handler = self.get_handler(event)
+        handler_result = handler(sid, data)
 
-        return pass_next, ret_val
+        if isinstance(handler_result, tuple):
+            return handler_result
+        elif isinstance(handler_result, dict):
+            return True, handler_result
+        else:
+            return True, {}
+
+    def get_handler(self, event: str) -> Callable[[str, dict], Union[Tuple[bool, dict], dict, None]]:
+        """Get the handler for the event.
+
+        Args:
+            event (str): The event name.
+
+        Returns:
+            callable: The handler for the event.
+        """
+
+        if event in self.handlers:
+            return self.handlers[event]
+
+        return lambda *args, **kwargs: None

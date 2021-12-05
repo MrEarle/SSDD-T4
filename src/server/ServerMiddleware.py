@@ -1,37 +1,26 @@
 from typing import Tuple
 
-from src import client
-
-from ..utils.Middleware import Middleware
 from ..utils.Logger import getServerLogger
+from ..utils.Middleware import Middleware
 from .Users import UserList
 
 logger = getServerLogger("ServerMiddleware")
 
 
 class ServerMiddleware(Middleware):
-    def __init__(self, users: UserList, *args, **kwargs):
+    def __init__(self, users: UserList, min_user_count: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.users = users
+        self.min_user_count = min_user_count
         self.history_sent = False
         self.messages = {}
 
         self.handlers = {
             "connect": self.connect,
             "disconnect": self.disconnect,
+            "chat": self.chat,
         }
-
-    def __handle(self, event: str, sid: str, data: dict) -> Tuple[bool, dict]:
-        handler = self.handlers.get(event, lambda *args, **kwargs: None)
-        handler_result = handler(sid, data)
-
-        if isinstance(handler_result, tuple):
-            return handler_result
-        elif isinstance(handler_result, dict):
-            return True, handler_result
-        else:
-            return True, {}
 
     def connect(self, sid, data):
         logger.debug(f"User logging in with auth: {data}")
@@ -89,6 +78,7 @@ class ServerMiddleware(Middleware):
 
         # Mandar mensaje a todos los clientes, solo si se supera el n
         if len(self.users) >= self.min_user_count or self.history_sent:
+            logger.debug(f"Sending message to all clients")
             for user in self.users.users.values():
                 try:
                     msg = data.copy()
@@ -97,3 +87,5 @@ class ServerMiddleware(Middleware):
                     self.socketio.emit("chat", msg, to=user.sid)
                 except Exception as e:
                     logger.error(f"Error: {e}")
+
+        return {"status": "ok"}

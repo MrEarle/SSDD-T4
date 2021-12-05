@@ -126,7 +126,7 @@ class ClientSockets:
                 self.server_io.emit(
                     "chat",
                     msg,
-                    callback=lambda _: self.__setSendNext(True),
+                    callback=lambda *args: self.__setSendNext(True),
                 )
 
             # Yield the CPU
@@ -161,7 +161,13 @@ class ClientSockets:
 
     def send_private_message(self, dest_user, username, message):
         # Send a private message via p2p server
-        def send_msg(addr, uuid):
+        def send_msg(arg_dict):  # addr, uuid):
+            if arg_dict is None:
+                self.gui.addMessage(f"User {dest_user} is not connected")
+                return
+
+            addr = arg_dict["uri"]
+            uuid = arg_dict["uuid"]
             self.__send_private_message(addr, username, message, dest_user, uuid),
 
         try:

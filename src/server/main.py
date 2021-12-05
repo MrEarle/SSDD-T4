@@ -1,21 +1,18 @@
+from logging import log
 from threading import Thread
 from typing import List
 
 from socketio import Server, WSGIApp
 from werkzeug.serving import make_server
 
-from src.server.ServerMiddleware import ServerMiddleware
-from src.server.Users import UserList
+from src.server.ReplicationMiddleware import ReplicationMiddleware
 
-from ..utils.Middleware import Middleware
 from ..utils.Logger import getServerLogger
-from ..utils.networking import (
-    change_server_addr,
-    get_public_ip,
-    request_random_server,
-    request_replica_addr,
-    send_server_addr,
-)
+from ..utils.Middleware import Middleware
+from ..utils.networking import get_public_ip, send_server_addr
+from .P2PMiddleware import P2PMiddleware
+from .ServerMiddleware import ServerMiddleware
+from .Users import UserList
 
 logger = getServerLogger("Main")
 
@@ -33,7 +30,7 @@ class MainServer:
         self.first_middleware: Middleware = None
 
         # Socketio
-        self.server = Server(cors_allowed_origins="*")
+        self.server: Server = Server(cors_allowed_origins="*", logger=logger)
         self.app = WSGIApp(self.server)
 
         self.ip, self.port = get_public_ip()
@@ -47,6 +44,7 @@ class MainServer:
 
         # Connected Users
         self.users = UserList()
+        self.events = set()
 
         # For debug
         self.simulate_server_down = False
@@ -58,30 +56,54 @@ class MainServer:
         # migration_middleware = MigrationMiddleware()
         # self.middlewares.append(migration_middleware)
 
-        # replication_middleware = ReplicationMiddleware()
-        # self.middlewares.append(replication_middleware)
+        replication_middleware = ReplicationMiddleware(self.users, self.server)
+        self.middlewares.append(replication_middleware)
 
-        server_middleware = ServerMiddleware(self.users, self.server)
+        p2p_middleware = P2PMiddleware(self.users, self.server)
+        self.middlewares.append(p2p_middleware)
+
+        server_middleware = ServerMiddleware(self.users, self.min_user_count, self.server)
         self.middlewares.append(server_middleware)
 
         prev_middleware = None
         for middleware in self.middlewares:
+            for event in middleware.handlers:
+                self.events.add(event)
+
             if prev_middleware is not None:
                 prev_middleware.set_next(middleware)
             prev_middleware = middleware
 
+        self.events.remove("connect")
+        self.events.remove("disconnect")
+
         self.first_middleware = self.middlewares[0]
 
     def handle(self, event: str, sid: str, data: dict):
+        logger.debug(f"Evento: {event} -> {data}")
         if self.simulate_server_down:
+            logger.debug("Servidor apagado")
             return False
 
-        return self.first_middleware.handle(event, sid, data)
+        result = self.first_middleware.handle(event, sid, data)
+        logger.debug(f"Resultado: {result}")
+        return result
+
+    def get_handler(self, event_name: str):
+        def handler(sid, data):
+            return self.handle(event_name, sid, data)
+
+        return handler
 
     def setup_events(self):
         self.server.on("connect", self.on_connect)
         self.server.on("disconnect", self.on_disconnect)
-        self.server.on("*", self.handle)
+
+        for event in self.events:
+            handler = self.get_handler(event)
+            self.server.on(event, handler)
+
+        print(self.server.handlers)
 
     def register_in_dns(self):
         _, is_active_server = send_server_addr(self.dns_host, self.dns_port, self.server_uri, self.addr)
@@ -116,7 +138,7 @@ class MainServer:
                 print("Comando no reconocido")
 
     def on_connect(self, sid: str, _, auth: dict):
-        self.handle("connect", sid, auth)
+        return self.handle("connect", sid, auth)
 
     def on_disconnect(self, sid: str):
-        self.handle("disconnect", sid, {})
+        return self.handle("disconnect", sid, {})
