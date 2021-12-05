@@ -153,7 +153,7 @@ class MainServer:
 
     def start(self):
         # ! Start server
-        server_th = Thread(target=self.__start)
+        server_th = Thread(target=self.__start, daemon=True)
         server_th.start()
 
         while True:
