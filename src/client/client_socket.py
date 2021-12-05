@@ -1,5 +1,6 @@
 import logging
 from collections import deque
+from src.client.start_server import start_server
 from src.utils.networking import request_server_adrr
 
 import socketio
@@ -54,6 +55,7 @@ class ClientSockets:
         self.server_io.on("message_history", self.chat_message_history)
         self.server_io.on("pause_messaging", self.receive_pause_messages_signal)
         self.server_io.on("reconnect", self.reconnect)
+        self.server_io.on("server_start", self.on_create_server)
 
     def connect(self):
         logger.debug("Initializing chat GUI")
@@ -180,3 +182,11 @@ class ClientSockets:
             )
         except TypeError:
             self.gui.addMessage("There was an error sending the private message, please try again.")
+
+    def on_create_server(self, data):
+        logger.debug(f"Creating server {data}")
+        # Create a server
+        ip, port = start_server()
+
+        logger.debug(f"Server created at {ip}:{port}")
+        return {"ip": ip, "port": port}

@@ -8,13 +8,13 @@ logger = getServerLogger("ServerMiddleware")
 
 
 class ServerMiddleware(Middleware):
-    def __init__(self, users: UserList, min_user_count: int, *args, **kwargs):
+    def __init__(self, users: UserList, messages: dict, min_user_count: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.users = users
         self.min_user_count = min_user_count
         self.history_sent = False
-        self.messages = {}
+        self.messages = messages
 
         self.handlers = {
             "connect": self.connect,

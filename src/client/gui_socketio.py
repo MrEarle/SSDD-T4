@@ -19,9 +19,7 @@ class GUI:
     ):
         self.server_connect = server_connect  # Method to connect to the server
         self.send_message = send_message  # Method to send a message
-        self.send_private_message = (
-            send_private_message  # Method to send a private message
-        )
+        self.send_private_message = send_private_message  # Method to send a private message
         self.name = ""
 
         # chat window which is currently hidden
@@ -83,11 +81,12 @@ class GUI:
             self.server_connect(name)
         except SioConnError as e:
             logger.debug(e)
-            messagebox.showwarning(
-                "Username already taken", f"The username {name} is already taken."
-            )
+            self.show_error("Username already taken", f"The username {name} is already taken.")
             return
         self.name = name
+
+    def show_error(self, title: str, message: str):
+        messagebox.showwarning(title, message)
 
     def onConnect(self, reconnecting=False):
         self.login.destroy()
@@ -97,9 +96,7 @@ class GUI:
         if not reconnecting:
             self.addMessage("Welcome to the chat!")
             self.addMessage("To send a private message, type:\n\t@<username> <message>")
-            self.addMessage(
-                "With <username> being the destination user, and <message> being the message to send."
-            )
+            self.addMessage("With <username> being the destination user, and <message> being the message to send.")
 
         logger.debug("[GUI] Connection initialized. Listening to server")
 
@@ -139,9 +136,7 @@ class GUI:
 
         self.labelBottom.place(relwidth=1, rely=0.825)
 
-        self.entryMsg = Entry(
-            self.labelBottom, bg="#2C3E50", fg="#EAECEE", font="Helvetica 13"
-        )
+        self.entryMsg = Entry(self.labelBottom, bg="#2C3E50", fg="#EAECEE", font="Helvetica 13")
 
         # place the given widget
         # into the gui window
@@ -188,9 +183,7 @@ class GUI:
         else:
             # Private message
             dest_user, message = res.groups()
-            self.send_private_message(
-                dest_user=dest_user, username=self.name, message=message
-            )
+            self.send_private_message(dest_user=dest_user, username=self.name, message=message)
 
     def addMessage(self, message: str):
         self.textCons.config(state=NORMAL)

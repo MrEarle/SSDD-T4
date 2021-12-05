@@ -1,15 +1,16 @@
 from abc import abstractmethod
-from typing import Callable, Tuple, Union
+from typing import Callable, Dict, Tuple, Union
 
 from socketio import Server
 
 
 class Middleware:
-    def __init__(self, socketio: Server, next_middleware=None):
+    def __init__(self, socketio: Server, next_middleware=None, main_server=None):
         self.socketio = socketio
         self.next_middleware = next_middleware
+        self.main_server = main_server
 
-        self.handlers = {}
+        self.handlers: Dict[str, Callable[[str, dict], Union[Tuple[bool, dict], dict, None]]] = {}
 
     def set_next(self, middleware):
         self.next_middleware = middleware

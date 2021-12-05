@@ -1,16 +1,17 @@
-from logging import log
+import os
+import signal
 from threading import Thread
 from typing import List
 
 from socketio import Server, WSGIApp
 from werkzeug.serving import make_server
 
-from src.server.ReplicationMiddleware import ReplicationMiddleware
-
 from ..utils.Logger import getServerLogger
 from ..utils.Middleware import Middleware
 from ..utils.networking import get_public_ip, send_server_addr
+from .MigrationMiddleware import MigrationMiddleware
 from .P2PMiddleware import P2PMiddleware
+from .ReplicationMiddleware import ReplicationMiddleware
 from .ServerMiddleware import ServerMiddleware
 from .Users import UserList
 
@@ -18,12 +19,22 @@ logger = getServerLogger("Main")
 
 
 class MainServer:
-    def __init__(self, dns_host: str, dns_port: int = 3000, min_user_count: int = 0, server_uri: str = "backend.com"):
+    def __init__(
+        self,
+        dns_host: str,
+        dns_port: int = 3000,
+        min_user_count: int = 0,
+        server_uri: str = "backend.com",
+        server_ip: str = None,
+        server_port: int = None,
+        migrating: bool = False,
+    ):
         # Parameters
         self.dns_host = dns_host
         self.dns_port = dns_port
         self.min_user_count = min_user_count
         self.server_uri = server_uri
+        self.migrating = migrating
 
         # Middlewares
         self.middlewares: List[Middleware] = []
@@ -33,9 +44,24 @@ class MainServer:
         self.server: Server = Server(cors_allowed_origins="*", logger=logger)
         self.app = WSGIApp(self.server)
 
-        self.ip, self.port = get_public_ip()
+        if server_ip is None or server_port is None:
+            ip, port = get_public_ip()
+
+            if server_ip is None:
+                self.ip = ip
+            else:
+                self.ip = server_ip
+
+            if server_port is None:
+                self.port = port
+            else:
+                self.port = server_port
+        else:
+            self.ip = server_ip
+            self.port = server_port
+
         self.addr = f"http://{self.ip}:{self.port}"
-        self.__created_server = make_server(
+        self._created_server = make_server(
             self.ip,
             self.port,
             self.app,
@@ -44,6 +70,8 @@ class MainServer:
 
         # Connected Users
         self.users = UserList()
+        self.messages = {}
+
         self.events = set()
 
         # For debug
@@ -53,17 +81,19 @@ class MainServer:
     def setup_middlewares(self):
         # ! Setup application middlewares
 
-        # migration_middleware = MigrationMiddleware()
-        # self.middlewares.append(migration_middleware)
+        self.migration_middleware = MigrationMiddleware(self.users, self.server, main_server=self)
+        self.middlewares.append(self.migration_middleware)
 
-        replication_middleware = ReplicationMiddleware(self.users, self.server)
-        self.middlewares.append(replication_middleware)
+        self.replication_middleware = ReplicationMiddleware(self.users, self.server, main_server=self)
+        self.middlewares.append(self.replication_middleware)
 
-        p2p_middleware = P2PMiddleware(self.users, self.server)
-        self.middlewares.append(p2p_middleware)
+        self.p2p_middleware = P2PMiddleware(self.users, self.server, main_server=self)
+        self.middlewares.append(self.p2p_middleware)
 
-        server_middleware = ServerMiddleware(self.users, self.min_user_count, self.server)
-        self.middlewares.append(server_middleware)
+        self.server_middleware = ServerMiddleware(
+            self.users, self.messages, self.min_user_count, self.server, main_server=self
+        )
+        self.middlewares.append(self.server_middleware)
 
         prev_middleware = None
         for middleware in self.middlewares:
@@ -106,16 +136,20 @@ class MainServer:
         print(self.server.handlers)
 
     def register_in_dns(self):
+        if self.migrating:
+            return
+
         _, is_active_server = send_server_addr(self.dns_host, self.dns_port, self.server_uri, self.addr)
         if not is_active_server:
             logger.debug("No se pudo registrar en el DNS")
-            exit(1)
+            os.kill(os.getpid(), signal.SIGTERM)
 
     def __start(self):
         self.setup_middlewares()
         self.setup_events()
         self.register_in_dns()
-        self.__created_server.serve_forever()
+        self.migration_middleware.start()
+        self._created_server.serve_forever()
 
     def start(self):
         # ! Start server
@@ -132,7 +166,7 @@ class MainServer:
                 self.simulate_server_down = False
             elif inp == "TERMINAR":
                 logger.info("Terminando servidor")
-                self.__created_server.shutdown()
+                self._created_server.shutdown()
                 break
             else:
                 print("Comando no reconocido")

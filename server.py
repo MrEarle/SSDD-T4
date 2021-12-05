@@ -1,8 +1,8 @@
 import logging
 import socket
 from argparse import ArgumentParser
-
 from src.server.main import MainServer
+
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -35,9 +35,21 @@ parser.add_argument(
     type=int,
 )
 
+parser.add_argument("--server_ip", help="Optional. Server ip", type=str, default=None)
+parser.add_argument("--server_port", help="Optional. Server port", type=int, default=None)
+parser.add_argument("--migrating", help="Dont use", default=False, action="store_true")
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
     # Server en otro thread
-    server = MainServer(args.dns_ip, args.dns_port, args.min_n, args.server_uri)
+    server = MainServer(
+        args.dns_ip,
+        args.dns_port,
+        args.min_n,
+        args.server_uri,
+        server_ip=args.server_ip,
+        server_port=args.server_port,
+        migrating=args.migrating,
+    )
     server.start()
