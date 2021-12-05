@@ -41,7 +41,7 @@ class MainServer:
         self.first_middleware: Middleware = None
 
         # Socketio
-        self.server: Server = Server(cors_allowed_origins="*", logger=logger)
+        self.server: Server = Server(cors_allowed_origins="*")
         self.app = WSGIApp(self.server)
 
         if server_ip is None or server_port is None:

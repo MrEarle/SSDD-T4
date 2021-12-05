@@ -2,6 +2,7 @@ import os
 import signal
 from random import choice
 from time import sleep, time
+from typing import List
 
 from socketio import Client
 
@@ -9,7 +10,7 @@ from src.utils.networking import change_server_addr
 
 from ..utils.Logger import getServerLogger
 from ..utils.Middleware import Middleware
-from .Users import UserList
+from .Users import User, UserList
 
 logger = getServerLogger("MigrationMiddleware")
 
@@ -30,6 +31,17 @@ class MigrationMiddleware(Middleware):
             "migrate": self.on_migrate,
         }
 
+    def filter_valid_clients(self, clients: List[User]):
+        valid = []
+        for client in clients:
+            try:
+                sid = client.sid
+                self.socketio.get_session(sid)
+                valid.append(sid)
+            except Exception:
+                pass
+        return valid
+
     def migrate(self):
         """Comenzar el proceso de migración"""
 
@@ -37,13 +49,13 @@ class MigrationMiddleware(Middleware):
         new_address = None
 
         while not selected_server or new_address is None:
-            clients = list(self.users.users.values())
+            clients_sids = self.filter_valid_clients(self.users.users.values())
 
-            if len(clients) == 0:
+            if len(clients_sids) == 0:
                 return False
 
             # Elegir un cliente al azar
-            selected_client_sid = choice(clients).sid
+            selected_client_sid = choice(clients_sids)
 
             # Conectar y notificar migracion
             new_address = self.request_server_start(selected_client_sid)
