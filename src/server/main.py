@@ -8,7 +8,7 @@ from werkzeug.serving import make_server
 
 from ..utils.Logger import getServerLogger
 from ..utils.Middleware import Middleware
-from ..utils.networking import get_public_ip, send_server_addr
+from ..utils.networking import get_public_ip, request_replica_addr, send_server_addr
 from .MigrationMiddleware import MigrationMiddleware
 from .P2PMiddleware import P2PMiddleware
 from .ReplicationMiddleware import ReplicationMiddleware
@@ -146,9 +146,9 @@ class MainServer:
             os.kill(os.getpid(), signal.SIGTERM)
 
     def __start(self):
-        self.setup_middlewares()
-        self.setup_events()
         self.register_in_dns()
+        self.setup_middlewares()
+        self.setup_events()   
         self.migration_middleware.start()
         self._created_server.serve_forever()
 
