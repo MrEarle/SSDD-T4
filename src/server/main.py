@@ -4,6 +4,7 @@ from threading import Thread
 from typing import List
 
 from socketio import Server, WSGIApp
+from socketio.client import Client
 from werkzeug.serving import make_server
 
 from ..utils.Logger import getServerLogger
@@ -12,6 +13,7 @@ from ..utils.networking import get_public_ip, request_replica_addr, send_server_
 from .MigrationMiddleware import MigrationMiddleware
 from .P2PMiddleware import P2PMiddleware
 from .ReplicationMiddleware import ReplicationMiddleware
+from .DNSMiddleware import DNSMiddleware
 from .ServerMiddleware import ServerMiddleware
 from .Users import UserList
 
@@ -81,6 +83,9 @@ class MainServer:
     def setup_middlewares(self):
         # ! Setup application middlewares
 
+        self.dns_middleware = DNSMiddleware(self.users, self.server, main_server=self)
+        self.middlewares.append(self.dns_middleware)
+
         self.migration_middleware = MigrationMiddleware(self.users, self.server, main_server=self)
         self.middlewares.append(self.migration_middleware)
 
@@ -140,10 +145,14 @@ class MainServer:
         if self.migrating:
             return
 
+        print(self.addr)
         _, is_active_server = send_server_addr(self.dns_host, self.dns_port, self.server_uri, self.addr)
         if not is_active_server:
             logger.debug("No se pudo registrar en el DNS")
             os.kill(os.getpid(), signal.SIGTERM)
+        # else:
+        #     socket = Client()
+        #     socket.connect(f"http://{self.dns_host}:{8001}")
 
     def __start(self):
         self.register_in_dns()
@@ -173,6 +182,7 @@ class MainServer:
                 print("Comando no reconocido")
 
     def on_connect(self, sid: str, _, auth: dict):
+        print("Se está conectando el dns")
         return self.handle("connect", sid, auth)
 
     def on_disconnect(self, sid: str):

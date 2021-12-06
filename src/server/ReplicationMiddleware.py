@@ -5,7 +5,10 @@ from socketio.client import Client
 from src.utils.networking import request_replica_addr
 
 from .Users import UserList
+from ..utils.Logger import getServerLogger
 from ..utils.Middleware import Middleware
+
+logger = getServerLogger("ReplicationMiddleware")
 
 
 class ReplicationMiddleware(Middleware):
@@ -33,10 +36,13 @@ class ReplicationMiddleware(Middleware):
             print('\nConnecting to replica server')
             self.replica_client = Client()
             # Aqui tenemos un cliente para comunicarnos con la replica
-            self.replica_client.connect(replica_address, auth={
-                "replica_addr": self.main_server.addr})
-            self.replica_client.emit('connect_other_server', data={
-                'replica_addr': self.main_server.addr})
+            try:
+                self.replica_client.connect(replica_address, auth={
+                    "replica_addr": self.main_server.addr})
+                self.replica_client.emit('connect_other_server', data={
+                    'replica_addr': self.main_server.addr})
+            except Exception:
+                pass
 
     def connect_other(self, sid: str, data: dict):
         if self.replica_client:
@@ -59,22 +65,25 @@ class ReplicationMiddleware(Middleware):
         El mensaje se pasa al siguiente middleware para que eventualmente sea procesado por el
         servidor de chat.
         """
+        if not "client_name" in data:
+            client = self.users.get_user_by_sid(sid)
 
-        client = self.users.get_user_by_sid(sid)
-
-        if client is None:
-            return False, {}
+            if client is None:
+                return False, {}
+            
+            data["client_name"] = client.name
 
         with self.index_lock:
             data["message_index"] = self.next_index
             self.next_index += 1
 
-        data["client_name"] = client.name
-
-        current_forwarded = data["forwarded"]
-        data["forwarded"] = True
-
-        if not current_forwarded:
+        if 'forwarded' in data and data['forwarded']:
+            logger.debug(f"New message from replica")
+            return True, data
+        
+        if not 'forwarded' in data:
+            data['forwarded'] = True
+            logger.debug(f"Sending new message to replica")
             self.replica_client.emit('chat', data)
 
         return data
