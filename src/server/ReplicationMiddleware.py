@@ -27,15 +27,16 @@ class ReplicationMiddleware(Middleware):
 
     def connect_replica(self):
         replica_address = request_replica_addr(self.main_server.dns_host, self.main_server.dns_port,
-                                               self.main_server.addr, self.main_server.server_uri)  # Se obtiene el address de la replica
+                                               self.main_server.addr,
+                                               self.main_server.server_uri)  # Se obtiene el address de la replica
         if replica_address:
             print('\nConnecting to replica server')
             self.replica_client = Client()
             # Aqui tenemos un cliente para comunicarnos con la replica
             self.replica_client.connect(replica_address, auth={
-                                        "replica_addr": self.main_server.addr})
+                "replica_addr": self.main_server.addr})
             self.replica_client.emit('connect_other_server', data={
-                                     'replica_addr': self.main_server.addr})
+                'replica_addr': self.main_server.addr})
 
     def connect_other(self, sid: str, data: dict):
         if self.replica_client:
@@ -44,7 +45,7 @@ class ReplicationMiddleware(Middleware):
             self.replica_client = Client()
 
         self.replica_client.connect(data['replica_addr'], auth={
-                                        "replica_addr": self.main_server.addr})
+            "replica_addr": self.main_server.addr})
 
     def connect(self, sid: str, data: dict):
         if "replica_addr" in data:
@@ -69,5 +70,11 @@ class ReplicationMiddleware(Middleware):
             self.next_index += 1
 
         data["client_name"] = client.name
+
+        current_forwarded = data["forwarded"]
+        data["forwarded"] = True
+
+        if not current_forwarded:
+            self.replica_client.emit('chat', data)
 
         return data
