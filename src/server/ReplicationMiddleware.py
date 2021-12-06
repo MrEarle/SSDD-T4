@@ -23,8 +23,12 @@ class ReplicationMiddleware(Middleware):
         self.index_lock = Lock()
         self.next_index = 0
 
-        self.handlers = {"chat": self.chat, "connect": self.connect,
-                         "connect_other_server": self.connect_other}
+        self.handlers = {
+            "chat": self.chat,
+            "connect": self.connect,
+            "connect_other_server": self.connect_other,
+            "sync_next_index": self.on_sync_next_index,
+        }
 
         self.connect_replica()
 
@@ -59,6 +63,23 @@ class ReplicationMiddleware(Middleware):
         else:
             return None
 
+    def on_sync_next_index(self, sid: str, data: dict):
+        # Calcular el indice a asignar
+        with self.index_lock:
+            # Indice a asignar segun otro server
+            remote_next_index = data["message_index"]
+
+            # Indice a asignar segun este server
+            local_next_index = self.next_index
+
+            # Indice a asignar segun ambos
+            next_index = max(remote_next_index, local_next_index)
+
+            # Actualizar localmente el siguiente indice
+            self.next_index = max(self.next_index, next_index) + 1
+        
+        return {"next_index": next_index}
+
     def chat(self, sid: str, data: dict):
         """
         Si llega un evento 'chat', se procesa por aca y se le asigna el indice correspondiente.
@@ -73,17 +94,17 @@ class ReplicationMiddleware(Middleware):
             
             data["client_name"] = client.name
 
-        with self.index_lock:
-            data["message_index"] = self.next_index
-            self.next_index += 1
+        def callback(response: dict):
+            with self.index_lock:
+                self.next_index = max(self.next_index, response["next_index"]) + 1
 
-        if 'forwarded' in data and data['forwarded']:
-            logger.debug(f"New message from replica")
-            return True, data
-        
-        if not 'forwarded' in data:
-            data['forwarded'] = True
-            logger.debug(f"Sending new message to replica")
-            self.replica_client.emit('chat', data)
+        if self.replica_client.connected:
+            try:
+                with self.index_lock:
+                    logger.debug(f"Sending new message to replica")
+                    data["message_index"] = self.next_index
+                    self.replica_client.emit('sync_next_index', data, callback=callback)
+            except Exception:
+                pass
 
         return data

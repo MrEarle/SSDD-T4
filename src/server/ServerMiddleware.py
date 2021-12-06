@@ -22,6 +22,7 @@ class ServerMiddleware(Middleware):
             "connect": self.connect,
             "disconnect": self.disconnect,
             "chat": self.chat,
+            "sync_next_index": self.chat,
         }
 
     def connect(self, sid, data):
