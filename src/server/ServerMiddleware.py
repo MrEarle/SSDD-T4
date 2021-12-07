@@ -25,12 +25,35 @@ class ServerMiddleware(Middleware):
             "sync_next_index": self.chat,
             "sync_new_user": self.on_sync_new_user,
             "sync_new_user_reconnection": self.on_sync_reconnecting_user,
+            "disconnect_synced_user": self.disconnect_synced_user,
+            "update_p2p_uri": self.update_p2p_uri,
+            "update_p2p_uri_replica": self.update_p2p_uri_forwarded
         }
+
+    def update_p2p_uri_forwarded(self, sid: str, data: dict):
+        logger.info("Updating uri data in replica")
+        if "username" in data:
+            user = self.users.get_user_by_name(data["username"])
+            if user:
+                self.users.del_user(user.sid)
+                self.users.add_user(user.name, sid, data["publicUri"], user.replicated, uri_update=True)
+            else:
+                logger.error(f"Couldn't find user {data['username']} to update its uri")
+
+    def update_p2p_uri(self, sid: str, data: dict):
+        logger.info("Updating uri data")
+        if "username" in data:
+            user = self.users.get_user_by_name(data["username"])
+            if user:
+                self.users.del_user(user.sid)
+                self.users.add_user(user.name, sid, data["publicUri"], user.replicated, uri_update=True)
+            else:
+                logger.error(f"Couldn't find user {data['username']} to update its uri")
+        return True
 
     def connect(self, sid, data):
         logger.debug(f"User logging in with auth: {data}")
         user = self.users.add_user(data["username"], sid, data["publicUri"], replicated="replicated" in data)
-
 
         if user is None:
             logger.debug(f'Username {data["username"]} is already taken')
@@ -69,10 +92,16 @@ class ServerMiddleware(Middleware):
     def on_sync_reconnecting_user(self, sid: str, data: dict):
         pass
 
-    def disconnect(self, sid, _):
+    def disconnect_synced_user(self, sid1: str, sid: str):
         # Obtener el usuario, si existe
         client = self.users.get_user_by_sid(sid)
         if client:
+            self.users.del_user(sid)
+
+    def disconnect(self, sid, _):
+        # Obtener el usuario, si existe
+        client = self.users.get_user_by_sid(sid)
+        if client and not client.replicated:
             logger.debug(f"User disconnected: {client.name}")
 
             # Notificar al resto que el usuario se desconecto
