@@ -110,5 +110,7 @@ class ReplicationMiddleware(Middleware):
                     self.replica_client.emit('sync_next_index', data, callback=callback)
             except Exception:
                 pass
-
+        else:
+            data["message_index"] = self.next_index
+            self.next_index = self.next_index + 1         
         return data
