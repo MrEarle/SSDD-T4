@@ -26,8 +26,10 @@ class ReplicationMiddleware(Middleware):
         self.handlers = {
             "chat": self.chat,
             "connect": self.connect,
+            "disconnect": self.disconnect,
             "connect_other_server": self.connect_other,
-            "sync_next_index": self.on_sync_next_index
+            "sync_next_index": self.on_sync_next_index,
+            "update_p2p_uri": self.update_p2p_uri,
         }
 
         self.connect_replica()
@@ -47,6 +49,18 @@ class ReplicationMiddleware(Middleware):
                     'replica_addr': self.main_server.addr})
             except Exception:
                 pass
+
+    def update_p2p_uri(self, sid, data):
+        if self.replica_client and self.replica_client.connected:
+            self.replica_client.emit('update_p2p_uri_replica', data)
+        return False
+
+    def disconnect(self, sid, _):
+
+        client = self.users.get_user_by_sid(sid)
+        if client:
+            if self.replica_client and self.replica_client.connected:
+                self.replica_client.emit('disconnect_synced_user', sid)
 
     def connect_other(self, sid: str, data: dict):
         if self.replica_client:
@@ -112,5 +126,5 @@ class ReplicationMiddleware(Middleware):
                 pass
         else:
             data["message_index"] = self.next_index
-            self.next_index = self.next_index + 1         
+            self.next_index = self.next_index + 1
         return data

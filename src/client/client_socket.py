@@ -149,6 +149,10 @@ class ClientSockets:
             auth={"username": name, "publicUri": f"http://{self.public_ip}:{self.port}", "reconnecting": reconnecting},
         )
         self.__pauseMessages = False
+        ip, port = self.p2p.start()
+        data = {"username": name, "publicUri": f"http://{ip}:{port}"}
+        self.server_io.emit('update_p2p_uri', data)
+
 
     def send_message(self, message: str):
         # Appends a message to the outbound queue.
