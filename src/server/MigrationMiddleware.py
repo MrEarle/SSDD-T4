@@ -177,9 +177,12 @@ class MigrationMiddleware(Middleware):
         while True:
             logger.debug("Waiting for cycle to end (30s)")
             sleep(30)
+            if self.main_server.simulate_server_down:
+                migration_success = False
+            else:
 
-            logger.debug("Cycle ended, initiating migration")
-            migration_success = self.migrate()
+                logger.debug("Cycle ended, initiating migration")
+                migration_success = self.migrate()
 
             if migration_success:
                 logger.debug("Migration successful")
