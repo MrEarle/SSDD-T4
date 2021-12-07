@@ -1,6 +1,7 @@
 import os
 import signal
 from threading import Thread
+from time import sleep
 from typing import List
 
 from socketio import Server, WSGIApp
@@ -171,9 +172,14 @@ class MainServer:
             if inp == "APAGAR":
                 logger.info("Apagando servidor")
                 self.simulate_server_down = True
+                self.server.emit('server_down_dns')
+                self.users = UserList()
+                sleep(1)
+                self.server.emit('server_down')
             elif inp == "PRENDER":
                 logger.info("Prendiendo servidor")
                 self.simulate_server_down = False
+                self.register_in_dns()
             elif inp == "TERMINAR":
                 logger.info("Terminando servidor")
                 self._created_server.shutdown()

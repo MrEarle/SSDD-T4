@@ -114,9 +114,14 @@ class NameServer:
                     def on_disconnect():
                         self.on_disconnect(req['addr'], req['uri'])
 
+
                     client = Client(reconnection=False)
                     client.connect(req['addr'], auth={'dns_polling': True})
                     client.on('disconnect', on_disconnect)
+
+                    def on_server_down():
+                        client.disconnect()
+                    client.on('server_down_dns', on_server_down)
 
                 elif req["name"] == "addr_request":
                     closest_ip = self.get_closest_server(addr[0], req["uri"])

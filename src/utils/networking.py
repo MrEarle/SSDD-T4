@@ -70,7 +70,6 @@ def send_server_addr(dns_host: str, dns_port: int, server_uri: str, server_addr:
             pass
         sleep(0.1)
 
-
 def change_server_addr(
     dns_host: str, dns_port: int, server_uri: str, server_addr: str, self_addr: str, callback
 ) -> str:
