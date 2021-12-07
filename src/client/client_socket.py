@@ -57,6 +57,7 @@ class ClientSockets:
         self.server_io.on("pause_messaging", self.receive_pause_messages_signal)
         self.server_io.on("reconnect", self.reconnect)
         self.server_io.on("server_start", self.on_create_server)
+        self.server_io.on("send_next",self.__setSendNext)
 
     def connect(self):
         logger.debug("Initializing chat GUI")
@@ -73,6 +74,7 @@ class ClientSockets:
         self.server_io.disconnect()
         self.initialize_server_connection()
         self.server_connect(self.gui.name, self.reconnecting)
+        self.__sendNext = True
         return True
 
     def receive_uuid(self, uuid: str):
@@ -131,6 +133,8 @@ class ClientSockets:
                     msg,
                     callback=lambda *args: self.__setSendNext(True),
                 )
+            else:
+                print(len(self.__outbound), self.__sendNext, self.__pauseMessages)
 
             # Yield the CPU
             self.server_io.sleep(1e-4)  # 100 usec
