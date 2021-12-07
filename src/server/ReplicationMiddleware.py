@@ -98,7 +98,7 @@ class ReplicationMiddleware(Middleware):
             with self.index_lock:
                 self.next_index = max(self.next_index, response["next_index"]) + 1
 
-        if self.replica_client.connected:
+        if self.replica_client and self.replica_client.connected:
             try:
                 with self.index_lock:
                     logger.debug(f"Sending new message to replica")
@@ -106,5 +106,7 @@ class ReplicationMiddleware(Middleware):
                     self.replica_client.emit('sync_next_index', data, callback=callback)
             except Exception:
                 pass
-
+        else:
+            data["message_index"] = self.next_index
+            self.next_index = self.next_index + 1         
         return data
