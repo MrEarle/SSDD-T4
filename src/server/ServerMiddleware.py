@@ -23,11 +23,13 @@ class ServerMiddleware(Middleware):
             "disconnect": self.disconnect,
             "chat": self.chat,
             "sync_next_index": self.chat,
+            "sync_new_user": self.on_sync_new_user,
         }
 
     def connect(self, sid, data):
         logger.debug(f"User logging in with auth: {data}")
         user = self.users.add_user(data["username"], sid, data["publicUri"])
+
 
         if user is None:
             logger.debug(f'Username {data["username"]} is already taken')
@@ -58,6 +60,9 @@ class ServerMiddleware(Middleware):
                 self.history_sent = True
 
         logger.debug(f"{user.name} connected with sid {user.sid}")
+
+    def on_sync_new_user(self, sid: str, data: dict):
+        self.connect(sid, data)
 
     def disconnect(self, sid, _):
         # Obtener el usuario, si existe

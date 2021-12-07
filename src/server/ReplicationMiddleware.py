@@ -27,7 +27,7 @@ class ReplicationMiddleware(Middleware):
             "chat": self.chat,
             "connect": self.connect,
             "connect_other_server": self.connect_other,
-            "sync_next_index": self.on_sync_next_index,
+            "sync_next_index": self.on_sync_next_index
         }
 
         self.connect_replica()
@@ -58,9 +58,14 @@ class ReplicationMiddleware(Middleware):
             "replica_addr": self.main_server.addr})
 
     def connect(self, sid: str, data: dict):
+        print("User connecting here", data)
         if "replica_addr" in data:
             return False, {}
         else:
+            # User connected
+            if "username" in data:
+                if self.replica_client.connected:
+                    self.replica_client.emit('sync_new_user', data)
             return None
 
     def on_sync_next_index(self, sid: str, data: dict):
@@ -77,7 +82,7 @@ class ReplicationMiddleware(Middleware):
 
             # Actualizar localmente el siguiente indice
             self.next_index = max(self.next_index, next_index) + 1
-        
+
         return {"next_index": next_index}
 
     def chat(self, sid: str, data: dict):
@@ -91,7 +96,7 @@ class ReplicationMiddleware(Middleware):
 
             if client is None:
                 return False, {}
-            
+
             data["client_name"] = client.name
 
         def callback(response: dict):
