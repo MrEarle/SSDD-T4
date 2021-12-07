@@ -133,8 +133,6 @@ class ClientSockets:
                     msg,
                     callback=lambda *args: self.__setSendNext(True),
                 )
-            else:
-                print(len(self.__outbound), self.__sendNext, self.__pauseMessages)
 
             # Yield the CPU
             self.server_io.sleep(1e-4)  # 100 usec
