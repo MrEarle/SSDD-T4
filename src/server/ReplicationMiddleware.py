@@ -58,13 +58,12 @@ class ReplicationMiddleware(Middleware):
             "replica_addr": self.main_server.addr})
 
     def connect(self, sid: str, data: dict):
-        print("User connecting here", data)
         if "replica_addr" in data:
             return False, {}
         else:
             # User connected
             if "username" in data:
-                if self.replica_client.connected:
+                if self.replica_client and self.replica_client.connected:
                     self.replica_client.emit('sync_new_user', data)
             return None
 
@@ -103,7 +102,7 @@ class ReplicationMiddleware(Middleware):
             with self.index_lock:
                 self.next_index = max(self.next_index, response["next_index"]) + 1
 
-        if self.replica_client.connected:
+        if self.replica_client and self.replica_client.connected:
             try:
                 with self.index_lock:
                     logger.debug(f"Sending new message to replica")

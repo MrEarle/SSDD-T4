@@ -35,6 +35,8 @@ class MigrationMiddleware(Middleware):
         valid = []
         for client in clients:
             try:
+                if client.replicated:
+                    continue
                 sid = client.sid
                 self.socketio.get_session(sid)
                 valid.append(sid)
@@ -85,6 +87,7 @@ class MigrationMiddleware(Middleware):
             done = True
             addr = (data["ip"], data["port"])
 
+        print(f"Server starting to {sid}")
         self.socketio.emit("server_start", {}, to=sid, callback=cb)
 
         end_time = time() + SERVER_START_TIMEOUT
