@@ -30,37 +30,46 @@ class ReplicationMiddleware(Middleware):
             "connect_other_server": self.connect_other,
             "sync_next_index": self.on_sync_next_index,
             "update_p2p_uri": self.update_p2p_uri,
-            "disconnect_other_server": self.disconnect_other_server
+            "disconnect_other_server": self.disconnect_other_server,
         }
 
         self.connect_replica()
+
     def simulate_down(self):
         if self.replica_client:
             self.replica_client.disconnect()
             self.replica_client = None
-            self.socketio.emit('disconnect_other_server')
+            self.socketio.emit("disconnect_other_server")
+
     def disconnect_other_server(self):
         self.replica_client.disconnect()
         self.replica_client = None
+
     def connect_replica(self):
-        replica_address = request_replica_addr(self.main_server.dns_host, self.main_server.dns_port,
-                                               self.main_server.addr,
-                                               self.main_server.server_uri)  # Se obtiene el address de la replica
+        replica_address = request_replica_addr(
+            self.main_server.dns_host, self.main_server.dns_port, self.main_server.addr, self.main_server.server_uri
+        )  # Se obtiene el address de la replica
         if replica_address:
-            print('\nConnecting to replica server')
+            print("\nConnecting to replica server")
             self.replica_client = Client()
             # Aqui tenemos un cliente para comunicarnos con la replica
             try:
-                self.replica_client.connect(replica_address, auth={
-                    "replica_addr": self.main_server.addr})
-                self.replica_client.emit('connect_other_server', data={
-                    'replica_addr': self.main_server.addr})
+                self.replica_client.connect(
+                    lambda *_: request_replica_addr(
+                        self.main_server.dns_host,
+                        self.main_server.dns_port,
+                        self.main_server.addr,
+                        self.main_server.server_uri,
+                    ),
+                    auth={"replica_addr": self.main_server.addr},
+                )
+                self.replica_client.emit("connect_other_server", data={"replica_addr": self.main_server.addr})
             except Exception:
                 pass
 
     def update_p2p_uri(self, sid, data):
         if self.replica_client and self.replica_client.connected:
-            self.replica_client.emit('update_p2p_uri_replica', data)
+            self.replica_client.emit("update_p2p_uri_replica", data)
         return False
 
     def disconnect(self, sid, _):
@@ -68,7 +77,7 @@ class ReplicationMiddleware(Middleware):
         client = self.users.get_user_by_sid(sid)
         if client:
             if self.replica_client and self.replica_client.connected:
-                self.replica_client.emit('disconnect_synced_user', sid)
+                self.replica_client.emit("disconnect_synced_user", sid)
 
     def connect_other(self, sid: str, data: dict):
         if self.replica_client:
@@ -76,8 +85,7 @@ class ReplicationMiddleware(Middleware):
         else:
             self.replica_client = Client()
 
-        self.replica_client.connect(data['replica_addr'], auth={
-            "replica_addr": self.main_server.addr})
+        self.replica_client.connect(data["replica_addr"], auth={"replica_addr": self.main_server.addr})
 
     def connect(self, sid: str, data: dict):
         if "replica_addr" in data:
@@ -86,7 +94,7 @@ class ReplicationMiddleware(Middleware):
             # User connected
             if "username" in data:
                 if self.replica_client and self.replica_client.connected:
-                    self.replica_client.emit('sync_new_user', data)
+                    self.replica_client.emit("sync_new_user", data)
             return None
 
     def on_sync_next_index(self, sid: str, data: dict):
@@ -129,7 +137,7 @@ class ReplicationMiddleware(Middleware):
                 with self.index_lock:
                     logger.debug(f"Sending new message to replica")
                     data["message_index"] = self.next_index
-                    self.replica_client.emit('sync_next_index', data, callback=callback)
+                    self.replica_client.emit("sync_next_index", data, callback=callback)
             except Exception:
                 pass
         else:

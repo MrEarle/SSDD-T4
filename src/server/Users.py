@@ -6,7 +6,7 @@ from uuid import uuid4
 logger = logging.getLogger("[UserList]")
 
 
-User = namedtuple("User", ["name", "uuid", "uri", "sid", "replicated"])
+User = namedtuple("User", ["name", "uuid", "uri", "sid", "replicated", "disconnected"])
 
 
 class UserList:
@@ -25,6 +25,11 @@ class UserList:
         if not username or old_user:
             if uri_update:
                 self.del_user(old_user.sid)
+            elif old_user.disconnected:
+                self.del_user(old_user.sid)
+                user = User(old_user.name, old_user.uuid, uri, sid, old_user.replicated, False)
+                self.users[sid] = user
+                return user
             else:
                 logger.debug(f"Username with name {username} already exists. Users:", self.users)
                 if old_user.replicated:
@@ -35,7 +40,7 @@ class UserList:
                         return old_user
                     return None
         uuid = str(uuid4())
-        user = User(username, uuid, uri, sid, replicated)
+        user = User(username, uuid, uri, sid, replicated, False)
         self.users[sid] = user
         return user
 
@@ -76,7 +81,7 @@ class UserList:
         user = None
         if sid in self.users:
             user = self.users[sid]
-            del self.users[sid]
+            self.users[sid] = User(user.name, user.uuid, user.uri, user.sid, user.replicated, True)
 
         return user
 
