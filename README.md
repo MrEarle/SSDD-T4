@@ -88,6 +88,8 @@ Para la tarea 4, se incluye la simulación de que un servidor se ha caido a trav
 
 Respecto a la robustez frente a la caida de 1 servidor. Los usuarios simplemente se reconectarán al otro servidor, por lo que no notarán una baja del servicio.
 
+Respecto a la caida del cliente, al volver a conectarse, se detecta que es el mismo que estaba antes conectado, y se le reenvia la historia de mensajes. De esta manera, no se pierden los mensajes entre reconexiones.
+
 # Descripción proceso tarea 3
 
 ## Soporte para múltiples servidores
