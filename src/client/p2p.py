@@ -2,6 +2,7 @@ import logging
 import socket
 import threading
 from datetime import time
+from typing import Tuple
 
 import socketio
 from colorama import Fore as Color
@@ -32,7 +33,7 @@ class P2P:
         logger.debug("Starting p2p server")
         run_simple(public_ip, port, self.app)
 
-    def start(self) -> tuple[str, int]:
+    def start(self) -> Tuple[str, int]:
         public_ip, port = get_public_ip()
         logger.debug(f"P2P server address {public_ip}:{port}")
 
