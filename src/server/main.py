@@ -1,17 +1,20 @@
 import os
 import signal
 from threading import Thread
+from time import sleep
 from typing import List
 
 from socketio import Server, WSGIApp
+from socketio.client import Client
 from werkzeug.serving import make_server
 
 from ..utils.Logger import getServerLogger
 from ..utils.Middleware import Middleware
-from ..utils.networking import get_public_ip, send_server_addr
+from ..utils.networking import get_public_ip, request_replica_addr, send_server_addr
 from .MigrationMiddleware import MigrationMiddleware
 from .P2PMiddleware import P2PMiddleware
 from .ReplicationMiddleware import ReplicationMiddleware
+from .DNSMiddleware import DNSMiddleware
 from .ServerMiddleware import ServerMiddleware
 from .Users import UserList
 
@@ -81,6 +84,9 @@ class MainServer:
     def setup_middlewares(self):
         # ! Setup application middlewares
 
+        self.dns_middleware = DNSMiddleware(self.users, self.server, main_server=self)
+        self.middlewares.append(self.dns_middleware)
+
         self.migration_middleware = MigrationMiddleware(self.users, self.server, main_server=self)
         self.middlewares.append(self.migration_middleware)
 
@@ -114,7 +120,7 @@ class MainServer:
         logger.debug(f"Evento: {event} -> {data}")
         if self.simulate_server_down:
             logger.debug("Servidor apagado")
-            return False
+            #return False
 
         result = self.first_middleware.handle(event, sid, data)
         logger.debug(f"Resultado: {result}")
@@ -140,15 +146,19 @@ class MainServer:
         if self.migrating:
             return
 
+        print(self.addr)
         _, is_active_server = send_server_addr(self.dns_host, self.dns_port, self.server_uri, self.addr)
         if not is_active_server:
             logger.debug("No se pudo registrar en el DNS")
             os.kill(os.getpid(), signal.SIGTERM)
+        # else:
+        #     socket = Client()
+        #     socket.connect(f"http://{self.dns_host}:{8001}")
 
     def __start(self):
-        self.setup_middlewares()
-        self.setup_events()
         self.register_in_dns()
+        self.setup_middlewares()
+        self.setup_events()   
         self.migration_middleware.start()
         self._created_server.serve_forever()
 
@@ -162,9 +172,19 @@ class MainServer:
             if inp == "APAGAR":
                 logger.info("Apagando servidor")
                 self.simulate_server_down = True
+                self.server.emit('server_down_dns')
+                self.replication_middleware.simulate_down()
+                sleep(1)
+                self.server.emit('server_down')
             elif inp == "PRENDER":
                 logger.info("Prendiendo servidor")
                 self.simulate_server_down = False
+                self.users = UserList()
+                for middleware in self.middlewares:
+                    if isinstance(middleware, ServerMiddleware) or isinstance(middleware, ReplicationMiddleware):
+                        middleware.users = self.users
+                self.replication_middleware.connect_replica()
+                self.register_in_dns()
             elif inp == "TERMINAR":
                 logger.info("Terminando servidor")
                 self._created_server.shutdown()
@@ -173,6 +193,7 @@ class MainServer:
                 print("Comando no reconocido")
 
     def on_connect(self, sid: str, _, auth: dict):
+        print("Se está conectando el dns")
         return self.handle("connect", sid, auth)
 
     def on_disconnect(self, sid: str):

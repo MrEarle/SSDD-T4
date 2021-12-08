@@ -35,6 +35,8 @@ class MigrationMiddleware(Middleware):
         valid = []
         for client in clients:
             try:
+                if client.replicated:
+                    continue
                 sid = client.sid
                 self.socketio.get_session(sid)
                 valid.append(sid)
@@ -97,6 +99,7 @@ class MigrationMiddleware(Middleware):
                 pass
             done = True
 
+        print(f"Server starting to {sid}")
         self.socketio.emit("server_start", {}, to=sid, callback=cb)
 
         end_time = time() + SERVER_START_TIMEOUT
@@ -189,9 +192,12 @@ class MigrationMiddleware(Middleware):
         while True:
             logger.debug("Waiting for cycle to end (30s)")
             sleep(30)
+            if self.main_server.simulate_server_down:
+                migration_success = False
+            else:
 
-            logger.debug("Cycle ended, initiating migration")
-            migration_success = self.migrate()
+                logger.debug("Cycle ended, initiating migration")
+                migration_success = self.migrate()
 
             if migration_success:
                 logger.debug("Migration successful")

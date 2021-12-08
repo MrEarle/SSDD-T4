@@ -6,7 +6,7 @@ from uuid import uuid4
 logger = logging.getLogger("[UserList]")
 
 
-User = namedtuple("User", ["name", "uuid", "uri", "sid"])
+User = namedtuple("User", ["name", "uuid", "uri", "sid", "replicated"])
 
 
 class UserList:
@@ -20,13 +20,23 @@ class UserList:
         sid: Session ID for the user
     """
 
-    def add_user(self, username: str, sid: str, uri: str) -> Optional[User]:
-        if not username or self.get_user_by_name(username):
-            logger.debug(f"Username with name {username} already exists. Users:", self.users)
-            return None
+    def add_user(self, username: str, sid: str, uri: str, replicated: bool, uri_update=False) -> Optional[User]:
+        old_user = self.get_user_by_name(username)
+        if not username or old_user:
+            if uri_update:
+                self.del_user(old_user.sid)
+            else:
+                logger.debug(f"Username with name {username} already exists. Users:", self.users)
+                if old_user.replicated:
+                    logger.debug("Old user is replicated, we're just gonna assume the real one is arriving.")
+                    self.del_user(old_user.sid)
+                else:
+                    if replicated:
+                        return old_user
+                    return None
         uuid = str(uuid4())
-        user = User(username, uuid, uri, sid)
-        self.users[uuid] = user
+        user = User(username, uuid, uri, sid, replicated)
+        self.users[sid] = user
         return user
 
     """
@@ -34,9 +44,9 @@ class UserList:
         sid: SID for the user
     """
 
-    def get_user_by_uuid(self, uuid: str) -> Union[User, None]:
-        if uuid in self.users:
-            return self.users[uuid]
+    def get_user_by_sid(self, sid: str) -> Union[User, None]:
+        if sid in self.users:
+            return self.users[sid]
         return None
 
     """
@@ -50,9 +60,9 @@ class UserList:
                 return value
         return None
 
-    def get_user_by_sid(self, sid: str) -> Union[User, None]:
+    def get_user_by_uuid(self, uuid: str) -> Union[User, None]:
         for _, value in self.users.items():
-            if value.sid == sid:
+            if value.uuid == uuid:
                 return value
         return None
 

@@ -68,17 +68,25 @@ Una vez se han instalado las librerías necesarias, se deben seguir los siguient
 python3 dns.py
 ```
 
-2. Ejecutar los clientes, el dns se encargará de flagear a los primeros clientes como servidores.
+2. Ejecutar los 2 servidores. Los primeros 2 servidores en ser ejecutados se registrarán automáticamente en el DNS. Otros servidores creados de este modo no podran registrarse en el DNS.
 
 ```shell
-python3 main.py
+python3 server.py -n N
 ```
 
-**NOTA:** Existen otros parámetros opcionales para correr el código principal (no el DNS). A continuación se describen.
+Con `N` siendo el minimo de clientes necesarios para comenzar a mandar mensajes. En caso de no incluir `-n N`, su valor por defecto es 0.
 
-- `--dns_ip` y `--dns_port`: En caso de que el DNS esté corriendo en otra máquina, se debe especificar su `ip` y `port` de forma explícita, ya que por defecto esto apunta a `localhost:8000`.
-- `--server_uri` o `-u`: Especifica la URI del server. Por defecto esta es `backend.com`.
-- `--min_n` o `-n`: Mínima cantidad de clientes para que se comience el servicio de chat. Este valor debe ser incluido en todos los clientes en caso de que sea distinto de 0.
+3. Ejecutar los clientes, según se requiera.
+
+```shell
+python3 client.py
+```
+
+# Descripción proceso tarea 4
+
+Para la tarea 4, se incluye la simulación de que un servidor se ha caido a través de la consola. En caso de que se ingrese el comando `APAGAR`, se simulará como que el servidor se ha caido, mientras que `PRENDER` simulará que se ha vuelto a recuperar.
+
+Respecto a la robustez frente a la caida de 1 servidor. Los usuarios simplemente se reconectarán al otro servidor, por lo que no notarán una baja del servicio.
 
 # Descripción proceso tarea 3
 
@@ -88,7 +96,9 @@ El DNS ahora mantiene registro de hasta 2 servidores activos. Cuando un cliente 
 
 ## Migración de Servidores
 
-El principal cambio realizado para la migración de los servidores es que, al pedirle al DNS el servidor al cual migrar, este va a elegir uno que no sea servidor activo. Al realizar el cambio, el DNS sobreescribirá la dirección del servidor que está migrando con el nuevo servidor.
+Al realizar la migración. Ahora los servidores enviarán un mensaje a un cliente para que comience un proceso de servidor (efectivamente ejecutando `python3 server.py`). Esto creará una nueva consola en la máquina del servidor (para satisfacer requerimientos de la Tarea 4).
+
+Una vez creado el servidor, se realizará la transferencia de datos entre ellos, y el servidor original terminará su ejecución.
 
 ## Replicación
 
@@ -98,13 +108,15 @@ Para mantener consistencia orientada al cliente, para cada mensaje, los servidor
 
 ## Manejo de cliente y servidor en la misma máquina
 
-Al ejecutar el archivo [`main.py`](./main.py), se inician 2 procesos:
+Ahora el cliente y servidor se manejan en procesos separados.
 
-1. Se inicia el cliente, lo que incluye su GUI, el cliente del chat y un servidor asociado a la comunicación Cliente a cliente (mensaje privado).
-2. De forma paralela (en un thread), se ejecuta el servidor, el cual tiene las siguientes particularidades:
-    - Siempre se inicializa un servidor.
-    - Todos menos el que fue inicializado con el flag `-s` se encuentran en espera de un mensaje para iniciar la migración (ver [migraciones](#migraciones)).
-    - El que es inicializado con el flag `-s` actuará como el servidor inicial para el servicio de chat, y tendrá la logica para ejecutar la migración cuando se termine su tiempo (30 segundos según enunciado).
+~~Al ejecutar el archivo [`main.py`](./main.py), se inician 2 procesos:~~
+
+1. ~~Se inicia el cliente, lo que incluye su GUI, el cliente del chat y un servidor asociado a la comunicación Cliente a cliente (mensaje privado).~~
+2. ~~De forma paralela (en un thread), se ejecuta el servidor, el cual tiene las siguientes particularidades:~~
+    - ~~Siempre se inicializa un servidor.~~
+    - ~~Todos menos el que fue inicializado con el flag `-s` se encuentran en espera de un mensaje para iniciar la migración (ver [migraciones](#migraciones)).~~
+    - ~~El que es inicializado con el flag `-s` actuará como el servidor inicial para el servicio de chat, y tendrá la logica para ejecutar la migración cuando se termine su tiempo (30 segundos según enunciado).~~
 
 ## DNS
 
@@ -122,28 +134,23 @@ Dentro de cada maquina tendremos el cliente y un posible servidor para el progra
 Para explicar el proceso de migración incorporado a la tarea 1 en la
 presente tarea, explicamos el flujo a través de los siguientes pasos:
 
-1. Se conecta el primer cliente: en esta máquina de cliente se corren en
-primera instancia 2 procesos, el primero dice relación con un thread asociado
-al **cliente** en sí y otro que representaría al proceso del **server latente**, como
-este es el primer cliente en conectarse, dicho **servidor latente** pasaría a ser el
-**server principal (activo)** de la aplicación (**decisión de diseño**) y una
-vez establecido este server, se comunica con el **DNS Server** para actualizar su
+1. Se crean los primeros 2 servidores: Estos servidores pasarían a ser los
+**server principal (activo)** de la aplicación y una
+vez establecido estos server, se comunican con el **DNS Server** para actualizar su
 su registro en la tabla de direcciones, `'backend.com' -> http://HOST:PORT`,
-de manera que sea accesible por el resto de los clientes y procesos de servidor
-latentes.
-2. Una vez que transcurren los 30 segundos, el **servidor activo** (no latente) le solicita al DNS una address aleatoria de alguno de los servidores latentes. En este punto pueden ocurrir dos casos:
+de manera que sea accesible por el resto de los clientes (y servidores durante la migración y replicación).
+1. Una vez que transcurren los 30 segundos, el **servidor activo** se comunica con un cliente al azar para determinar la máquina en que se iniciará el nuevo servidor. En este punto pueden ocurrir dos casos:
 >
-> - No se encuentra ningún servidor latente disponible en el **DNS**, en cuyo caso no se realiza ninguna migración y se omiten los siguientes pasos.
-> - El **DNS** nos entrega un address valido, el cual apunta a uno de los servidores latentes. Luego se sigue con el paso **3**.
->
-3. En este escenario el actual server activo, se comunica con el servidor latente
-entregado, realizan un handshake y luego de eso comienza la transmisión de los
+> - No se encuentra ningún cliente disponible, en cuyo caso no se realiza ninguna migración y se omiten los siguientes pasos.
+> - El cliente no logra crear el proceso de servidor, por algún motivo.
+
+3. En este escenario el actual server activo, se comunica con el servidor creado, realizan un handshake y luego de eso comienza la transmisión de los
 datos, del server activo antiguo al nuevo.
 4. Una vez completado este proceso, el server activo antiguo se comunica con el
 DNS Server para notificar el cambio de address, esto se hace efectivo en la
 tabla de direcciones y este server activo antiguo, gatilla la reconexión de
 todos los clientes al nuevo server activo.
-5. Finalmente, se eliminan todos los mensajes del servidor antiguo con la finalidad de liberar memoria para los demás procesos.
+5. Finalmente, se termina el proceso del servidor antiguo, y se deja el nuevo servidor corriendo. Este comienza el proceso nuevamente.
 
 **OBS. 1** Entre los puntos **3.** y **4.**, el cliente puede serguir enviando
 mensajes pero estos se asignarán a una cola, que termina de enviarse una vez que

@@ -1,4 +1,5 @@
 import logging
+from time import sleep
 from collections import deque
 from src.client.start_server import start_server
 from src.utils.networking import request_server_adrr
@@ -56,6 +57,8 @@ class ClientSockets:
         self.server_io.on("pause_messaging", self.receive_pause_messages_signal)
         self.server_io.on("reconnect", self.reconnect)
         self.server_io.on("server_start", self.on_create_server)
+        self.server_io.on("send_next",self.__setSendNext)
+        self.server_io.on("server_down", self.server_down)
 
     def connect(self):
         logger.debug("Initializing chat GUI")
@@ -67,12 +70,26 @@ class ClientSockets:
             self.server_io.start_background_task(self.__run)
             self.flag = False
 
+    def server_down(self):
+        # Esta función se llama cuando se cae el servidor al cual esta conectado
+        # En el fondo trata de reconectarse al otro servidor
+        reconnected = False
+        print('Se cayo el servidor !!!')
+        while not reconnected:
+            print('Intentando conectarse a un nuevo servidor...')
+            reconnected = self.reconnect()
+            sleep(0.1)
+
     def reconnect(self):
-        self.reconnecting = True
-        self.server_io.disconnect()
-        self.initialize_server_connection()
-        self.server_connect(self.gui.name, self.reconnecting)
-        return True
+        try:
+            self.reconnecting = True
+            self.server_io.disconnect()
+            self.initialize_server_connection()
+            self.server_connect(self.gui.name, self.reconnecting)
+            self.__sendNext = True
+            return True
+        except:
+            return False
 
     def receive_uuid(self, uuid: str):
         pass
@@ -146,7 +163,9 @@ class ClientSockets:
             auth={"username": name, "publicUri": f"http://{self.public_ip}:{self.port}", "reconnecting": reconnecting},
         )
         self.__pauseMessages = False
-
+        ip, port = self.p2p.start()
+        data = {"username": name, "publicUri": f"http://{ip}:{port}"}
+        self.server_io.emit('update_p2p_uri', data)
     def send_message(self, message: str):
         # Appends a message to the outbound queue.
         # See __run for message sending.

@@ -9,11 +9,16 @@ applicable to local-area networks.
 import logging
 import pickle as pkl
 from datetime import datetime
+from re import U
 import socket
 from threading import Thread
 from random import choice, sample
 
 from colorama.ansi import Fore
+from socketio import Server
+from socketio.client import Client
+from socketio.middleware import WSGIApp
+from werkzeug.serving import make_server
 
 from .ip_lookup import find_closest_ip
 from .rw_lock import get_rwlock
@@ -29,7 +34,7 @@ def ctime():
 
 
 class NameServer:
-    def __init__(self, port=8000, n=10):
+    def __init__(self, port=8000, n=10, socketio_port=8001):
         """Initializes a name server with forwarding pointers of the form
         (stub, scion) for clients stubs and server stubs.
 
@@ -74,6 +79,14 @@ class NameServer:
                 client_th = Thread(target=self.accept_connection, args=[conn, addr])
                 client_th.start()
 
+    def on_disconnect(self, address: str, uri: str):
+        logger.debug(f"[{ctime()}] Server with address {address} is disconnected")
+
+        # Eliminamos la address del registro DNS
+        if address in self.uri2address[uri] and address in self.addresses:
+            self.uri2address[uri].remove(address)
+            self.addresses.remove(address)
+
     def accept_connection(self, conn: socket.socket, addr):
         """Manages a connection
 
@@ -97,12 +110,26 @@ class NameServer:
                     msj = {"name": "update_server_response", "addr": req["addr"], "active_server": active_server}
                     conn.send(pkl.dumps(msj))
                     logger.debug(f"[{ctime()}] Added new server location:" f" {req['addr']}")
+                    
+                    def on_disconnect():
+                        self.on_disconnect(req['addr'], req['uri'])
+
+
+                    client = Client(reconnection=False)
+                    client.connect(req['addr'], auth={'dns_polling': True})
+                    client.on('disconnect', on_disconnect)
+
+                    def on_server_down():
+                        client.disconnect()
+                    client.on('server_down_dns', on_server_down)
 
                 elif req["name"] == "addr_request":
+                    closest_ip = self.get_closest_server(addr[0], req["uri"])
                     msj = {
                         "name": "addr_response",
                         "req_uri": req["uri"],
-                        "addr": self.get_closest_server(addr[0], req["uri"]),
+                        "addr": closest_ip,
+                        "status": (200 if closest_ip else 404),
                     }
                     conn.send(pkl.dumps(msj))
                     logger.debug(f"[{ctime()}] Last known location sent to client: {req['uri']} -> {msj['addr']}")
@@ -142,7 +169,9 @@ class NameServer:
     def get_closest_server(self, ip: str, uri: str) -> str:
         with self.server_reader:
             servers = self.uri2address.get(uri)
-            return find_closest_ip(ip, sample(servers, len(servers)))
+            if servers:
+                return find_closest_ip(ip, sample(servers, len(servers)))
+            return None
 
     def register_address(self, uri: str, address: str) -> bool:
         """Receives a new host:port from the server host and update the list
@@ -200,8 +229,9 @@ class NameServer:
 
 def serve():
     PORT = 8000
+    SOCKETIO_PORT = 8001
     n = 10
-    ns = NameServer(PORT, n)
+    ns = NameServer(PORT, n, SOCKETIO_PORT)
 
     ns.run()
 
