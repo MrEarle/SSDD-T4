@@ -103,7 +103,7 @@ class ServerMiddleware(Middleware):
         client = self.users.get_user_by_sid(sid)
         if client and not client.replicated:
             logger.debug(f"User disconnected: {client.name}")
-
+            self.users.del_user(sid)
             # Notificar al resto que el usuario se desconecto
             self.socketio.emit(
                 "server_message",
@@ -114,7 +114,7 @@ class ServerMiddleware(Middleware):
         """Maneja el broadcast de los chats"""
         # Obtener el cliente que mando el mensaje
         client_name = data["client_name"]
-
+        print('data',data)
         # Agregar mensaje al registro
         if "message_index" in data:
             self.messages[data["message_index"]] = {"username": client_name, "message": data["message"]}

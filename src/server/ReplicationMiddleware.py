@@ -30,10 +30,18 @@ class ReplicationMiddleware(Middleware):
             "connect_other_server": self.connect_other,
             "sync_next_index": self.on_sync_next_index,
             "update_p2p_uri": self.update_p2p_uri,
+            "disconnect_other_server": self.disconnect_other_server
         }
 
         self.connect_replica()
-
+    def simulate_down(self):
+        if self.replica_client:
+            self.replica_client.disconnect()
+            self.replica_client = None
+            self.socketio.emit('disconnect_other_server')
+    def disconnect_other_server(self):
+        self.replica_client.disconnect()
+        self.replica_client = None
     def connect_replica(self):
         replica_address = request_replica_addr(self.main_server.dns_host, self.main_server.dns_port,
                                                self.main_server.addr,

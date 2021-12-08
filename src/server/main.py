@@ -120,7 +120,7 @@ class MainServer:
         logger.debug(f"Evento: {event} -> {data}")
         if self.simulate_server_down:
             logger.debug("Servidor apagado")
-            return False
+            #return False
 
         result = self.first_middleware.handle(event, sid, data)
         logger.debug(f"Resultado: {result}")
@@ -173,12 +173,17 @@ class MainServer:
                 logger.info("Apagando servidor")
                 self.simulate_server_down = True
                 self.server.emit('server_down_dns')
-                self.users = UserList()
+                self.replication_middleware.simulate_down()
                 sleep(1)
                 self.server.emit('server_down')
             elif inp == "PRENDER":
                 logger.info("Prendiendo servidor")
                 self.simulate_server_down = False
+                self.users = UserList()
+                for middleware in self.middlewares:
+                    if isinstance(middleware, ServerMiddleware) or isinstance(middleware, ReplicationMiddleware):
+                        middleware.users = self.users
+                self.replication_middleware.connect_replica()
                 self.register_in_dns()
             elif inp == "TERMINAR":
                 logger.info("Terminando servidor")
